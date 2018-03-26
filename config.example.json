@@ -1,0 +1,19 @@
+{
+    "Servers": [
+        {
+            "Bindings": ["0.0.0.0:443"],
+            "Certificates": [
+                {
+                    "Fullchain": "fullchain.pem",
+                    "Privkey": "privkey.pem"
+                }
+            ],
+            "VirtualServers": [
+                {
+                    "Hostname": "invoke.ws",
+                    "Upstream": "https://invoke.ws/"
+                }
+            ]
+        }
+    ]
+}
