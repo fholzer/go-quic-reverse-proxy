@@ -14,3 +14,4 @@
 .glide/
 
 config.json
+go-quic-reverse-proxy

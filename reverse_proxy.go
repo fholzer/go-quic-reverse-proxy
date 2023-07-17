@@ -19,7 +19,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/handlers"
-	"github.com/lucas-clemente/quic-go/h2quic"
+	"github.com/quic-go/quic-go/http3"
 )
 
 func loadConfig(file string) (*ConfigData, error) {
@@ -75,7 +75,7 @@ func main() {
 
 		// check whether all mentioned vhost hostnames actually have a corresponding certificate
 		for _, v := range s.VirtualServers {
-			if !hasCertificate(tlsConfig, v.Hostname) {
+			if !hasCertificate(&tlsConfig, v.Hostname) {
 				panic(errors.New("No certificate found for hostname '" + v.Hostname + "'"))
 			}
 		}
@@ -87,15 +87,13 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
+			defer pl.Close()
 
 			go func() {
 				var err error
-				server := h2quic.Server{
-					Server: &http.Server{
-						Addr:      addr,
-						Handler:   handler,
-						TLSConfig: &tlsConfig,
-					},
+				server := &http3.Server{
+					Handler:   handler,
+					TLSConfig: &tlsConfig,
 				}
 				err = server.Serve(pl)
 
@@ -118,7 +116,7 @@ func listenPacket(addr string) (net.PacketConn, error) {
 }
 
 // modified verions of crypto/tls/common.go getCertificate
-func hasCertificate(c tls.Config, serverName string) bool {
+func hasCertificate(c *tls.Config, serverName string) bool {
 	if c.GetCertificate != nil {
 		panic(errors.New("'GetCertificate' not supported when checking for presence of certificates."))
 	}
@@ -169,7 +167,7 @@ func buildProxyHandler(s Server) http.Handler {
 
 		// build maps for easy lookup
 		if strings.Contains(hn, "*") {
-			panic(errors.New("Wildcard hosts aren'T supported yet!"))
+			panic(errors.New("Wildcard hosts aren't supported yet!"))
 		} else {
 			exactMatch[hn] = proxy
 		}
