@@ -118,10 +118,10 @@ func listenPacket(addr string) (net.PacketConn, error) {
 // modified verions of crypto/tls/common.go getCertificate
 func hasCertificate(c *tls.Config, serverName string) bool {
 	if c.GetCertificate != nil {
-		panic(errors.New("'GetCertificate' not supported when checking for presence of certificates."))
+		panic(errors.New("'GetCertificate' not supported when checking for presence of certificates"))
 	}
 	if c.NameToCertificate == nil {
-		panic(errors.New("Need 'NameToCertificate' map when checking for presence of certificates."))
+		panic(errors.New("need 'NameToCertificate' map when checking for presence of certificates"))
 	}
 
 	if len(c.Certificates) == 0 {
@@ -164,10 +164,11 @@ func buildProxyHandler(s Server) http.Handler {
 			panic(err)
 		}
 		proxy := httputil.NewSingleHostReverseProxy(parsedUrl)
+		proxy.Transport = &transport
 
 		// build maps for easy lookup
 		if strings.Contains(hn, "*") {
-			panic(errors.New("Wildcard hosts aren't supported yet!"))
+			panic(errors.New("wildcard hosts aren't supported yet"))
 		} else {
 			exactMatch[hn] = proxy
 		}
