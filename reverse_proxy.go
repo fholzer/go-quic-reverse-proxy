@@ -154,6 +154,13 @@ func hasCertificate(c *tls.Config, serverName string) bool {
 func buildProxyHandler(s Server) http.Handler {
 	exactMatch := map[string]http.Handler{}
 
+	tlsConfig := tls.Config{
+		InsecureSkipVerify: true,
+	}
+	transport := http.Transport{
+		TLSClientConfig: &tlsConfig,
+	}
+
 	for _, v := range s.VirtualServers {
 		// normalize hostname
 		hn := strings.ToLower(v.Hostname)
