@@ -58,7 +58,7 @@ func main() {
 		wg.Add(len(s.Bindings))
 
 		// prepare certificates
-		certs := make([]tls.Certificate, 1)
+		certs := make([]tls.Certificate, len(s.Certificates))
 		for i, c := range s.Certificates {
 			certs[i], err = tls.LoadX509KeyPair(c.Fullchain, c.Privkey)
 			if err != nil {
