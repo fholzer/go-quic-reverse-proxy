@@ -58,26 +58,25 @@ func main() {
 		wg.Add(len(s.Bindings))
 
 		// prepare certificates
-		certs := make([]tls.Certificate, len(s.Certificates))
+		allCerts := make([]tls.Certificate, 0, 32)
+		certs := make([]*CertificateWithChains, len(s.Certificates))
 		for i, c := range s.Certificates {
-			certs[i], err = tls.LoadX509KeyPair(c.Fullchain, c.Privkey)
+			certs[i], err = NewCertificateWithChains(c.Fullchain, c.Privkey)
 			if err != nil {
 				log.Fatalf("Error processing certificates: %s", err.Error())
+			}
+			allCerts = append(allCerts, certs[i].Certificate)
+		}
+
+		// check whether all mentioned vhost hostnames actually have a corresponding certificate
+		for _, v := range s.VirtualServers {
+			if !hasCertificate(certs, v.Hostname) {
+				panic(errors.New("No certificate found for hostname '" + v.Hostname + "'"))
 			}
 		}
 
 		tlsConfig := tls.Config{
-			Certificates: certs,
-		}
-
-		// build name/certificate map
-		tlsConfig.BuildNameToCertificate()
-
-		// check whether all mentioned vhost hostnames actually have a corresponding certificate
-		for _, v := range s.VirtualServers {
-			if !hasCertificate(&tlsConfig, v.Hostname) {
-				panic(errors.New("No certificate found for hostname '" + v.Hostname + "'"))
-			}
+			Certificates: allCerts,
 		}
 
 		handler := buildProxyHandler(s)
@@ -114,42 +113,6 @@ func listenPacket(addr string) (net.PacketConn, error) {
 		return nil, err
 	}
 	return net.ListenUDP("udp", udpAddr)
-}
-
-// modified verions of crypto/tls/common.go getCertificate
-func hasCertificate(c *tls.Config, serverName string) bool {
-	if c.GetCertificate != nil {
-		panic(errors.New("'GetCertificate' not supported when checking for presence of certificates"))
-	}
-	if c.NameToCertificate == nil {
-		panic(errors.New("need 'NameToCertificate' map when checking for presence of certificates"))
-	}
-
-	if len(c.Certificates) == 0 {
-		return false
-	}
-
-	name := strings.ToLower(serverName)
-	for len(name) > 0 && name[len(name)-1] == '.' {
-		name = name[:len(name)-1]
-	}
-
-	if _, ok := c.NameToCertificate[name]; ok {
-		return true
-	}
-
-	// try replacing labels in the name with wildcards until we get a
-	// match.
-	labels := strings.Split(name, ".")
-	for i := range labels {
-		labels[i] = "*"
-		candidate := strings.Join(labels, ".")
-		if _, ok := c.NameToCertificate[candidate]; ok {
-			return true
-		}
-	}
-
-	return false
 }
 
 func buildProxyHandler(s Server) http.Handler {
