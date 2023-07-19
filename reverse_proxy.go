@@ -104,6 +104,7 @@ func main() {
 			}()
 		}
 	}
+	log.Println("Server started")
 	wg.Wait()
 }
 
