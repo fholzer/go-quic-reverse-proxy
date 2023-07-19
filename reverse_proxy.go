@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -20,6 +19,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/handlers"
 	"github.com/quic-go/quic-go/http3"
+	log "github.com/sirupsen/logrus"
 )
 
 func loadConfig(file string) (*ConfigData, error) {
@@ -40,10 +40,9 @@ func loadConfig(file string) (*ConfigData, error) {
 func main() {
 	rpConfig, err := loadConfig("config.json")
 	if err != nil {
-		log.Println("Failed to load config file.")
-		panic(err)
+		log.Fatalf("Failed to load config file: %s", err.Error())
 	}
-	log.Println("Here's the config as loaded from file.")
+	log.Info("Here's the config as loaded from file.")
 	spew.Dump(rpConfig)
 
 	flag.Parse()
@@ -104,7 +103,7 @@ func main() {
 			}()
 		}
 	}
-	log.Println("Server started")
+	log.Info("Server started")
 	wg.Wait()
 }
 
@@ -168,8 +167,7 @@ func buildProxyHandler(s Server) http.Handler {
 		// build proxy
 		parsedUrl, err := url.Parse(v.Upstream)
 		if err != nil {
-			log.Fatal("Failed to parse upstream URL")
-			panic(err)
+			log.Fatalf("Failed to parse upstream URL: %s", err.Error())
 		}
 		proxy := httputil.NewSingleHostReverseProxy(parsedUrl)
 		proxy.Transport = &transport

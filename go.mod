@@ -6,6 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/quic-go/quic-go v0.36.2
+	github.com/sirupsen/logrus v1.9.3
 )
 
 require (
