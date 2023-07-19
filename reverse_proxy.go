@@ -38,19 +38,20 @@ func loadConfig(file string) (*ConfigData, error) {
 }
 
 func main() {
+	var verbose bool
+	flag.BoolVar(&verbose, "v", false, "Enable debug logging.")
+	flag.Parse()
+
+	if verbose {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	rpConfig, err := loadConfig("config.json")
 	if err != nil {
 		log.Fatalf("Failed to load config file: %s", err.Error())
 	}
 	log.Info("Here's the config as loaded from file.")
-	spew.Dump(rpConfig)
-
-	flag.Parse()
-
-	if flag.NArg() != 0 {
-		fmt.Fprintf(os.Stderr, "Usage: %s backend_url\n", os.Args[0])
-		return
-	}
+	log.Debug(spew.Sdump(rpConfig))
 
 	var wg sync.WaitGroup
 	for _, s := range rpConfig.Servers {
@@ -61,7 +62,7 @@ func main() {
 		for i, c := range s.Certificates {
 			certs[i], err = tls.LoadX509KeyPair(c.Fullchain, c.Privkey)
 			if err != nil {
-				panic(err)
+				log.Fatalf("Error processing certificates: %s", err.Error())
 			}
 		}
 
