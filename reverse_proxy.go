@@ -50,7 +50,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config file: %s", err.Error())
 	}
-	log.Info("Here's the config as loaded from file.")
+	log.Debug("Here's the config as loaded from file.")
 	log.Debug(spew.Sdump(rpConfig))
 
 	var wg sync.WaitGroup
@@ -105,6 +105,7 @@ func main() {
 	}
 	log.Info("Server started")
 	wg.Wait()
+	log.Info("Server stopped")
 }
 
 func listenPacket(addr string) (net.PacketConn, error) {
