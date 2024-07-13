@@ -1,21 +1,21 @@
 package main
 
 type ConfigData struct {
-	Servers []Server
+	Servers []Server `yaml:"Servers"`
 }
 
 type Server struct {
-	Bindings       []string
-	Certificates   []Certificate
-	VirtualServers []VirtualServer
+	Bindings       []string        `yaml:"Bindings"`
+	Certificates   []Certificate   `yaml:"Certificates"`
+	VirtualServers []VirtualServer `yaml:"VirtualServers"`
 }
 
 type Certificate struct {
-	Fullchain string
-	Privkey   string
+	Fullchain string `yaml:"Fullchain"`
+	Privkey   string `yaml:"Privkey"`
 }
 
 type VirtualServer struct {
-	Hostname string
-	Upstream string
+	Hostname string `yaml:"Hostname"`
+	Upstream string `yaml:"Upstream"`
 }

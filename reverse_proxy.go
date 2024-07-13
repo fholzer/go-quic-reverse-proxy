@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/quic-go/quic-go/http3"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
 func loadConfig(file string) (*ConfigData, error) {
@@ -29,12 +29,12 @@ func loadConfig(file string) (*ConfigData, error) {
 	}
 	defer r.Close()
 
-	res := ConfigData{}
-	dec := json.NewDecoder(r)
-	if err := dec.Decode(&res); err != nil {
+	res := &ConfigData{}
+	dec := yaml.NewDecoder(r)
+	if err := dec.Decode(res); err != nil {
 		return nil, err
 	}
-	return &res, nil
+	return res, nil
 }
 
 func main() {
@@ -46,7 +46,7 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	rpConfig, err := loadConfig("config.json")
+	rpConfig, err := loadConfig("config.yml")
 	if err != nil {
 		log.Fatalf("Failed to load config file: %s", err.Error())
 	}
