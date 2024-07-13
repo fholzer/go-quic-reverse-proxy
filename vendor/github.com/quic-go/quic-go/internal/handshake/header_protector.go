@@ -10,7 +10,6 @@ import (
 	"golang.org/x/crypto/chacha20"
 
 	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/qtls"
 )
 
 type headerProtector interface {
@@ -18,14 +17,14 @@ type headerProtector interface {
 	DecryptHeader(sample []byte, firstByte *byte, hdrBytes []byte)
 }
 
-func hkdfHeaderProtectionLabel(v protocol.VersionNumber) string {
+func hkdfHeaderProtectionLabel(v protocol.Version) string {
 	if v == protocol.Version2 {
 		return "quicv2 hp"
 	}
 	return "quic hp"
 }
 
-func newHeaderProtector(suite *qtls.CipherSuiteTLS13, trafficSecret []byte, isLongHeader bool, v protocol.VersionNumber) headerProtector {
+func newHeaderProtector(suite *cipherSuite, trafficSecret []byte, isLongHeader bool, v protocol.Version) headerProtector {
 	hkdfLabel := hkdfHeaderProtectionLabel(v)
 	switch suite.ID {
 	case tls.TLS_AES_128_GCM_SHA256, tls.TLS_AES_256_GCM_SHA384:
@@ -38,14 +37,14 @@ func newHeaderProtector(suite *qtls.CipherSuiteTLS13, trafficSecret []byte, isLo
 }
 
 type aesHeaderProtector struct {
-	mask         []byte
+	mask         [16]byte // AES always has a 16 byte block size
 	block        cipher.Block
 	isLongHeader bool
 }
 
 var _ headerProtector = &aesHeaderProtector{}
 
-func newAESHeaderProtector(suite *qtls.CipherSuiteTLS13, trafficSecret []byte, isLongHeader bool, hkdfLabel string) headerProtector {
+func newAESHeaderProtector(suite *cipherSuite, trafficSecret []byte, isLongHeader bool, hkdfLabel string) headerProtector {
 	hpKey := hkdfExpandLabel(suite.Hash, trafficSecret, []byte{}, hkdfLabel, suite.KeyLen)
 	block, err := aes.NewCipher(hpKey)
 	if err != nil {
@@ -53,7 +52,6 @@ func newAESHeaderProtector(suite *qtls.CipherSuiteTLS13, trafficSecret []byte, i
 	}
 	return &aesHeaderProtector{
 		block:        block,
-		mask:         make([]byte, block.BlockSize()),
 		isLongHeader: isLongHeader,
 	}
 }
@@ -70,7 +68,7 @@ func (p *aesHeaderProtector) apply(sample []byte, firstByte *byte, hdrBytes []by
 	if len(sample) != len(p.mask) {
 		panic("invalid sample size")
 	}
-	p.block.Encrypt(p.mask, sample)
+	p.block.Encrypt(p.mask[:], sample)
 	if p.isLongHeader {
 		*firstByte ^= p.mask[0] & 0xf
 	} else {
@@ -90,7 +88,7 @@ type chachaHeaderProtector struct {
 
 var _ headerProtector = &chachaHeaderProtector{}
 
-func newChaChaHeaderProtector(suite *qtls.CipherSuiteTLS13, trafficSecret []byte, isLongHeader bool, hkdfLabel string) headerProtector {
+func newChaChaHeaderProtector(suite *cipherSuite, trafficSecret []byte, isLongHeader bool, hkdfLabel string) headerProtector {
 	hpKey := hkdfExpandLabel(suite.Hash, trafficSecret, []byte{}, hkdfLabel, suite.KeyLen)
 
 	p := &chachaHeaderProtector{
