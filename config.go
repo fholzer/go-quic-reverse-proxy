@@ -5,9 +5,14 @@ type ConfigData struct {
 }
 
 type Server struct {
-	Bindings       []string        `yaml:"Bindings"`
+	Bindings       []Binding       `yaml:"Bindings"`
 	Certificates   []Certificate   `yaml:"Certificates"`
 	VirtualServers []VirtualServer `yaml:"VirtualServers"`
+}
+
+type Binding struct {
+	Server  string `yaml:"Server"`
+	Metrics string `yaml:"Metrics"`
 }
 
 type Certificate struct {

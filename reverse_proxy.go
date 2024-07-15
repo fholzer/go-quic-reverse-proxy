@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -12,12 +13,17 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	_ "net/http/pprof"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/handlers"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
+	"github.com/quic-go/quic-go/metrics"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
@@ -82,19 +88,46 @@ func main() {
 		handler := buildProxyHandler(s)
 
 		for _, addr := range s.Bindings {
-			pl, err := listenPacket(addr)
+			pl, err := listenPacket(addr.Server)
 			if err != nil {
 				panic(err)
 			}
 			defer pl.Close()
 
+			var reg *prometheus.Registry
+			if addr.Metrics != "" {
+				wg.Add(1)
+				reg = prometheus.NewRegistry()
+				metricServer := createMetricServer(addr.Metrics, reg)
+				if err != nil {
+					panic(err)
+				}
+				go func() {
+					metricServer.ListenAndServe()
+				}()
+				defer func() {
+					sc, _ := context.WithTimeout(context.Background(), 5*time.Second)
+					metricServer.Shutdown(sc)
+				}()
+			}
+
 			go func() {
 				var err error
-				server := &http3.Server{
-					Handler:   handler,
-					TLSConfig: &tlsConfig,
+				tr := quic.Transport{Conn: pl}
+				qconf := &quic.Config{}
+				if reg != nil {
+					ctracer := NewConnectionTracer(reg)
+					qconf.Tracer = ctracer
+					tr.Tracer = metrics.NewTracerWithRegisterer(reg)
 				}
-				err = server.Serve(pl)
+				server := &http3.Server{
+					Handler:    handler,
+					TLSConfig:  &tlsConfig,
+					QUICConfig: qconf,
+				}
+
+				ln, _ := tr.ListenEarly(&tlsConfig, qconf)
+				err = server.ServeListener(ln)
 
 				if err != nil {
 					fmt.Println(err)
@@ -106,6 +139,16 @@ func main() {
 	log.Info("Server started")
 	wg.Wait()
 	log.Info("Server stopped")
+}
+
+func createMetricServer(binding string, reg *prometheus.Registry) *http.Server {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+
+	return &http.Server{
+		Addr:    binding,
+		Handler: mux,
+	}
 }
 
 func listenPacket(addr string) (net.PacketConn, error) {
