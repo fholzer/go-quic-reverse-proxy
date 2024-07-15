@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine3.18
+FROM golang:1.22.4-alpine
 
 WORKDIR /usr/app
 
@@ -10,6 +10,13 @@ CMD ["-v"]
 RUN --mount=type=cache,target=/root/.cache/go-build \
     go build .
 
-RUN chmod o+x go-quic-reverse-proxy
+
+FROM alpine
+
+COPY --from=0 /usr/app/go-quic-reverse-proxy /usr/bin/go-quic-reverse-proxy
+
+RUN chmod +x /usr/bin/go-quic-reverse-proxy
 
 WORKDIR /etc/quic
+
+ENTRYPOINT ["/usr/bin/go-quic-reverse-proxy"]
