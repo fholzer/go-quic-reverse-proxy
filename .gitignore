@@ -15,3 +15,5 @@
 
 config.yml
 go-quic-reverse-proxy
+fullchain.pem
+privkey.pem
