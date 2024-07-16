@@ -11,8 +11,10 @@ type Server struct {
 }
 
 type Binding struct {
-	Server  string `yaml:"Server"`
-	Metrics string `yaml:"Metrics"`
+	Server       string `yaml:"Server"`
+	Metrics      string `yaml:"Metrics"`
+	VerifyClient bool   `yaml:"VerifyClient"`
+	ClientCA     string `yaml:"ClientCA"`
 }
 
 type Certificate struct {
@@ -21,6 +23,8 @@ type Certificate struct {
 }
 
 type VirtualServer struct {
-	Hostname string `yaml:"Hostname"`
-	Upstream string `yaml:"Upstream"`
+	Hostname   string `yaml:"Hostname"`
+	Upstream   string `yaml:"Upstream"`
+	ClientCert string `yaml:"ClientCert"`
+	ClientKey  string `yaml:"ClientKey"`
 }

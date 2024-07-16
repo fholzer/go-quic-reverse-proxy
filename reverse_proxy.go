@@ -60,7 +60,7 @@ func main() {
 	log.Debug(spew.Sdump(rpConfig))
 
 	var wg sync.WaitGroup
-	for _, s := range rpConfig.Servers {
+	for serverIdx, s := range rpConfig.Servers {
 		wg.Add(len(s.Bindings))
 
 		// prepare certificates
@@ -81,33 +81,45 @@ func main() {
 			}
 		}
 
-		tlsConfig := tls.Config{
-			Certificates: allCerts,
-		}
-
 		handler := buildProxyHandler(s)
 
-		for _, addr := range s.Bindings {
+		for bindingIdx, addr := range s.Bindings {
 			pl, err := listenPacket(addr.Server)
 			if err != nil {
 				panic(err)
 			}
 			defer pl.Close()
 
+			tlsConfig := tls.Config{
+				Certificates: allCerts,
+			}
+			if addr.VerifyClient {
+				if addr.ClientCA == "" {
+					log.Fatalf("server %d, binding %d enables client certificate verification, but no CA is provided", serverIdx, bindingIdx)
+				}
+				clientCaPool, err := NewPoolFromPem(addr.ClientCA)
+				if err != nil {
+					log.Fatalf("server %d, binding %d enables client certificate verification; error while creating CA cert pool: %s", serverIdx, bindingIdx, err.Error())
+				}
+				log.Debugf("setting up mtls: %+v\n", clientCaPool)
+				tlsConfig.ClientCAs = clientCaPool
+				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+				tlsConfig.BuildNameToCertificate()
+			}
+
 			var reg *prometheus.Registry
 			if addr.Metrics != "" {
 				wg.Add(1)
 				reg = prometheus.NewRegistry()
 				metricServer := createMetricServer(addr.Metrics, reg)
-				if err != nil {
-					panic(err)
-				}
 				go func() {
 					metricServer.ListenAndServe()
 				}()
 				defer func() {
-					sc, _ := context.WithTimeout(context.Background(), 5*time.Second)
+					sc, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					metricServer.Shutdown(sc)
+					sc.Done()
+					cancel()
 				}()
 			}
 
@@ -122,7 +134,7 @@ func main() {
 				}
 				server := &http3.Server{
 					Handler:    handler,
-					TLSConfig:  &tlsConfig,
+					TLSConfig:  http3.ConfigureTLSConfig(&tlsConfig),
 					QUICConfig: qconf,
 				}
 
@@ -162,13 +174,6 @@ func listenPacket(addr string) (net.PacketConn, error) {
 func buildProxyHandler(s Server) http.Handler {
 	exactMatch := map[string]http.Handler{}
 
-	tlsConfig := tls.Config{
-		InsecureSkipVerify: true,
-	}
-	transport := http.Transport{
-		TLSClientConfig: &tlsConfig,
-	}
-
 	for _, v := range s.VirtualServers {
 		// normalize hostname
 		hn := strings.ToLower(v.Hostname)
@@ -177,6 +182,21 @@ func buildProxyHandler(s Server) http.Handler {
 		if err != nil {
 			log.Fatalf("Failed to parse upstream URL: %s", err.Error())
 		}
+
+		tlsConfig := tls.Config{
+			InsecureSkipVerify: true,
+		}
+		transport := http.Transport{
+			TLSClientConfig: &tlsConfig,
+		}
+		if v.ClientCert != "" && v.ClientKey != "" {
+			clientCert, err := tls.LoadX509KeyPair(v.ClientCert, v.ClientKey)
+			if err != nil {
+				log.Fatalf("Failed to load client cert for upstream %s: %s", v.Upstream, err.Error())
+			}
+			tlsConfig.Certificates = []tls.Certificate{clientCert}
+		}
+
 		proxy := httputil.NewSingleHostReverseProxy(parsedUrl)
 		proxy.Transport = &transport
 
@@ -185,10 +205,14 @@ func buildProxyHandler(s Server) http.Handler {
 			panic(errors.New("wildcard hosts aren't supported yet"))
 		} else {
 			exactMatch[hn] = proxy
+			log.Debugf("Added proxy handler for %s to %s\n", v.Hostname, v.Upstream)
 		}
 	}
 	vhostHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		hn := strings.ToLower(req.Host)
+		// host header may contain port
+		hnComponents := strings.SplitN(req.Host, ":", 2)
+		hn := strings.ToLower(hnComponents[0])
+		log.Debugf("Incoming request for %s\n", hn)
 		if h, ok := exactMatch[hn]; ok {
 			h.ServeHTTP(w, req)
 			return

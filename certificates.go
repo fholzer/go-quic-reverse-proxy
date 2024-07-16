@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -79,4 +81,19 @@ func hasCertificate(c []*CertificateWithChains, serverName string) bool {
 	}
 
 	return false
+}
+
+func NewPoolFromPem(filename string) (*x509.CertPool, error) {
+	clientCaData, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("CA file couldn't be read: %w", err)
+	}
+
+	clientCaPool := x509.NewCertPool()
+	ok := clientCaPool.AppendCertsFromPEM(clientCaData)
+	if !ok {
+		return nil, fmt.Errorf("no certificates found in CA file")
+	}
+
+	return clientCaPool, nil
 }
