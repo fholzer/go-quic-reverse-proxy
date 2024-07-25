@@ -135,11 +135,11 @@ func main() {
 				}
 				server := &http3.Server{
 					Handler:    handler,
-					TLSConfig:  http3.ConfigureTLSConfig(&tlsConfig),
+					TLSConfig:  http3.ConfigureTLSConfig(tlsConfig),
 					QUICConfig: qconf,
 				}
 
-				ln, _ := tr.ListenEarly(&tlsConfig, qconf)
+				ln, _ := tr.ListenEarly(tlsConfig, qconf)
 				err = server.ServeListener(ln)
 
 				if err != nil {
@@ -187,7 +187,7 @@ func buildProxyHandler(s Server) http.Handler {
 		tlsConfig := tls.Config{
 			InsecureSkipVerify: true,
 		}
-		transport := http.Transport{
+		transport := &http.Transport{
 			TLSClientConfig: &tlsConfig,
 		}
 		if v.ClientCert != "" && v.ClientKey != "" {
@@ -199,7 +199,7 @@ func buildProxyHandler(s Server) http.Handler {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(parsedUrl)
-		proxy.Transport = &transport
+		proxy.Transport = transport
 
 		// build maps for easy lookup
 		if strings.Contains(hn, "*") {
