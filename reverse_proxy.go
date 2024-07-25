@@ -119,7 +119,7 @@ func main() {
 				defer func() {
 					sc, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					metricServer.Shutdown(sc)
-					sc.Done()
+					<-sc.Done()
 					cancel()
 				}()
 			}
