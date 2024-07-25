@@ -90,7 +90,8 @@ func main() {
 			}
 			defer pl.Close()
 
-			tlsConfig := tls.Config{
+			tlsConfig := &tls.Config{
+				NextProtos:   []string{"h3"},
 				Certificates: allCerts,
 			}
 			if addr.VerifyClient {
